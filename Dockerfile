@@ -1,26 +1,21 @@
-FROM jenkins/jenkins:lts
+from jenkins/jenkins:2.401.3-lts-alpine
 USER root
-
-# Fix for Jenkins update center redirect issue
-# Forces jenkins-plugin-cli to use the correct endpoint
-ENV JENKINS_UC=https://updates.jenkins.io/current
-ENV JENKINS_UC_DOWNLOAD=https://updates.jenkins.io/current
-ENV JENKINS_UC_EXPERIMENTAL=https://updates.jenkins.io/experimental
-
-# Install plugins from plugins.txt
-COPY plugins.txt /usr/share/jenkins/plugins.txt
-RUN jenkins-plugin-cli --plugin-file /usr/share/jenkins/plugins.txt
-
-# Install Maven, Java, Docker, other tools
+# Pipeline
+RUN jenkins-plugin-cli --plugins workflow-aggregator github ws-cleanup greenballs simple-theme-plugin kubernetes docker-workflow kubernetes-cli github-branch-source
+ 
+# install Maven, Java, Docker, AWS
 RUN apk add --no-cache maven \
-    openjdk17 \
+    openjdk8 \
     docker \
     gettext
-
-# Install kubectl
-RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" \
- && chmod +x ./kubectl \
- && mv ./kubectl /usr/local/bin/kubectl
-
-# Not production safe (Jenkins running as root) — okay for CI/CD training/demo
+ 
+# Kubectl
+RUN  wget https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl && chmod +x ./kubectl && mv ./kubectl /usr/local/bin/kubectl
+ 
+# Need to ensure the gid here matches the gid on the host node. We ASSUME (hah!) this
+# will be stable....keep an eye out for unable to connect to docker.sock in the builds
+# RUN delgroup ping && delgroup docker && addgroup -g 999 docker && addgroup jenkins docker
+ 
+# See https://github.com/kubernetes/minikube/issues/956.
+# THIS IS FOR MINIKUBE TESTING ONLY - it is not production standard (we're running as root!)
 RUN chown -R root "$JENKINS_HOME" /usr/share/jenkins/ref
